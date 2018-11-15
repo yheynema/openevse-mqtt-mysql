@@ -1,0 +1,10 @@
+/** energySession.db **/
+create table energySession (
+ id INT NOT NULL AUTO_INCREMENT,
+ tstamp INT unsigned,
+ value INT unsigned,
+ sdur INT unsigned,
+ carid tinyint unsigned,
+ status tinyint null default 0,
+ PRIMARY KEY (id)
+);
