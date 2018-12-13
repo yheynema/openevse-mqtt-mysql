@@ -6,5 +6,110 @@ create table energySession (
  sdur INT unsigned,
  carid tinyint unsigned,
  status tinyint null default 0,
+ tarifid int default 0,
  PRIMARY KEY (id)
 );
+
+alter table energySession add column tarifid int default 0 after status;
+
+# id,dateV,dateE,value,carid,status
+create table versement (
+ id INT NOT NULL AUTO_INCREMENT,
+ dateV INT unsigned,
+ dateE INT unsigned,
+ value decimal(5,2),
+ carid tinyint unsigned,
+ status tinyint null default 0,
+ PRIMARY KEY (id)
+);
+
+create table tarif (
+ id int not null auto_increment,
+ dateA int unsigned,
+ value decimal(5,4),
+ status tinyint null default 0,
+ primary key (id)
+ );
+
+delimiter //
+create trigger before_energySession_insert before insert
+  on energySession
+  for each row
+  begin
+    declare x int unsigned;
+    set x = (select max(id) from tarif where status=1);
+    if NEW.tarifid = 0 then
+      set NEW.tarifid = x;
+    end if;
+  end;//
+delimiter ;
+
+MariaDB [mqtt]> describe energySession;
++---------+---------------------+------+-----+---------+----------------+
+| Field   | Type                | Null | Key | Default | Extra          |
++---------+---------------------+------+-----+---------+----------------+
+| id      | int(11)             | NO   | PRI | NULL    | auto_increment |
+| tstamp  | int(10) unsigned    | YES  |     | NULL    |                |
+| value   | int(10) unsigned    | YES  |     | NULL    |                |
+| sdur    | int(10) unsigned    | YES  |     | NULL    |                |
+| carid   | tinyint(3) unsigned | YES  |     | NULL    |                |
+| status  | tinyint(4)          | YES  |     | 0       |                |
+| tarifid | int(11)             | YES  |     | 0       |                |
++---------+---------------------+------+-----+---------+----------------+
+7 rows in set (0.00 sec)
+
+MariaDB [mqtt]> SELECT 
+    ->     trigger_schema, trigger_name, event_manipulation, ACTION_TIMING, EVENT_OBJECT_TABLE, ACTION_STATEMENT
+    -> FROM
+    ->     information_schema.triggers
+    -> WHERE
+    ->     trigger_schema = 'mqtt'
+    ->         AND trigger_name = 'before_energySession_insert';
++----------------+-----------------------------+--------------------+---------------+--------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| trigger_schema | trigger_name                | event_manipulation | ACTION_TIMING | EVENT_OBJECT_TABLE | ACTION_STATEMENT                                                                                                                                                   |
++----------------+-----------------------------+--------------------+---------------+--------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| mqtt           | before_energySession_insert | INSERT             | BEFORE        | energySession      | begin
+    declare x int unsigned;
+    set x = (select max(id) from tarif where status=1);
+    if NEW.tarifid = 0 then
+      set NEW.tarifid = x;
+    end if;
+  end |
++----------------+-----------------------------+--------------------+---------------+--------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+1 row in set (0.01 sec)
+
+MariaDB [mqtt]> describe tarif;
++--------+------------------+------+-----+---------+----------------+
+| Field  | Type             | Null | Key | Default | Extra          |
++--------+------------------+------+-----+---------+----------------+
+| id     | int(11)          | NO   | PRI | NULL    | auto_increment |
+| dateA  | int(10) unsigned | YES  |     | NULL    |                |
+| value  | decimal(5,4)     | YES  |     | NULL    |                |
+| status | tinyint(4)       | YES  |     | 0       |                |
++--------+------------------+------+-----+---------+----------------+
+4 rows in set (0.00 sec)
+
+MariaDB [mqtt]> describe versement;
++--------+---------------------+------+-----+---------+----------------+
+| Field  | Type                | Null | Key | Default | Extra          |
++--------+---------------------+------+-----+---------+----------------+
+| id     | int(11)             | NO   | PRI | NULL    | auto_increment |
+| dateV  | int(10) unsigned    | YES  |     | NULL    |                |
+| dateE  | int(10) unsigned    | YES  |     | NULL    |                |
+| value  | decimal(5,2)        | YES  |     | NULL    |                |
+| carid  | tinyint(3) unsigned | YES  |     | NULL    |                |
+| status | tinyint(4)          | YES  |     | 0       |                |
++--------+---------------------+------+-----+---------+----------------+
+6 rows in set (0.01 sec)
+
+MariaDB [mqtt]> 
+
+
+--- testing ----------------
+queryText = ("INSERT INTO energySession "
+                "(tstamp,value,sdur,carid,status,tarifid) "
+                        "VALUES (%s, %s, %s, %s, %s,%s)")
+                    queryArgs = (time.time(), energySession,
+                        sessionTime, 1, 0 ,0)
+
+insert into energySession2 (tstamp,value,sdur,carid,status) value(unix_timestamp(now())-1800,545790,256,1,0);   --> Work as designed! Ye!

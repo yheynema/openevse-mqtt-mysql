@@ -22,7 +22,7 @@ import paho.mqtt.client as mqtt
 import mysql.connector
 from mysql.connector import errorcode
 
-M_VERSION = "2.2.1"
+M_VERSION = "2.2.2"
 
 M_INFO = 2                 # Print messages: 0 - none, 1 - Startup, 2 - Serial, 3 - All
 
@@ -50,6 +50,7 @@ mysql_table = "energySession"
 #  sdur INT unsigned,
 #  carid tinyint unsigned,
 #  status tinyint null default 0,
+#  tarifid int default 0,
 #  PRIMARY KEY (id)
 # );
 
@@ -74,7 +75,7 @@ def my_info(type, message):
 def on_connect(mosq, obj, rc):
     with mqttc:
         mqttc.subscribe(MQTT_Topic)
-        print("rc: "+str(rc))
+        my_info(1,"rc: "+str(rc))
 
 
 def on_message(mosq, obj, msg):
@@ -87,13 +88,13 @@ def on_message(mosq, obj, msg):
     global initialWsReading
     global state2Timestamp
 
-    my_info(2,"On "+time.ctime()+":"+str(msg.topic) +
+    my_info(3,"On "+time.ctime()+":"+str(msg.topic) +
           " "+str(msg.qos)+" "+str(msg.payload))
     if msg.topic == 'openevse/state':
         currentState = int(msg.payload)
-        my_info(1,"CurrSt="+str(currentState)+" lastState="+str(lastState))
+        my_info(4,"CurrSt="+str(currentState)+" lastState="+str(lastState))
         if currentState != lastState:
-            my_info(1,'State changed: last='+str(lastState) +
+            my_info(2,'On '+time.ctime()+' - State changed: last='+str(lastState) +
                   " new="+str(currentState))
             # Dectecting state transition from 1 or 2, connected, a new session opens:
             if lastState == 1 and currentState == 2:
@@ -111,23 +112,23 @@ def on_message(mosq, obj, msg):
                     logEnergyState = 1
                 else:
                     logEnergyState = 2
-                my_info(1,'Session started at: '+str(sessionStartAt))
+                my_info(2,'Session started at: '+str(sessionStartAt))
             # Decting end of charge session, moving from 3 down to 1 or 2:
             if currentState < lastState and currentState < 4 and currentState > 0:
                 if lastState == 3:
                     logEnergyState = lastState
                     sessionEndedAt = time.time()
-                    my_info(1,'Session ended at: '+str(sessionEndedAt))
+                    my_info(2,'Session ended at: '+str(sessionEndedAt))
             lastState = currentState
     if msg.topic == 'openevse/wh':
         # Read data in Watt-Second:
         currentWsReading = long(float(msg.payload))
-        my_info(3,'logEnergyState status: '+str(logEnergyState))
+        my_info(4,'logEnergyState status: '+str(logEnergyState))
         # This session state went from disconnect to charging, thus a NEW session detected:
         if logEnergyState == 1:
             initialWsReading = 0
             logEnergyState = 0
-            my_info(1,'New session detected.')
+            my_info(2,'New session detected.')
         # This session state went from connected to charging, additional charge while being connected
         # In other words, this is a Delta session. The previousWsReading handling is important as when
         # the state transition, we can get the Ws reading 30 sec later, some consumption might not
@@ -140,14 +141,14 @@ def on_message(mosq, obj, msg):
               #This is better, normal, consider the last reading, just before transition from state 2 to 3:
               initialWsReading = previousWsReading
             logEnergyState = 0
-            my_info(1,'Delta session detected. Using initialWsReading as:'+str(initialWsReading))
+            my_info(2,'Delta session detected. Using initialWsReading as:'+str(initialWsReading))
         # End of session detected moved from charging down to either connected or disconnected, let's log the session details:
         if logEnergyState == 3:
             if currentWsReading > 0:
                 sessionTime = int(sessionEndedAt - sessionStartAt)
                 energySession = int(currentWsReading - initialWsReading)
-                my_info(1,'Session duration: '+str(sessionTime))
-                my_info(1,'Session Energy: '+str(currentWsReading))
+                my_info(2,'Session duration: '+str(sessionTime))
+                my_info(2,'Session Energy: '+str(currentWsReading))
                 try:
                     my_info(3,'Logging data to MySQL')
                     cnx = mysql.connector.connect(**sql_cfg)
@@ -159,7 +160,7 @@ def on_message(mosq, obj, msg):
                     queryArgs = (time.time(), energySession,
                         sessionTime, 1, 0)
                     cursor.execute(queryText, queryArgs)
-                    my_info(1,'Successfully Added record to mysql')
+                    my_info(2,'Successfully Added record to mysql')
                     # Make sure data is committed to the database
                     cnx.commit()
                     cursor.close()
@@ -167,13 +168,12 @@ def on_message(mosq, obj, msg):
                     logEnergyState = 0
                 except mysql.connector.Error as err:
                     if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-                      print("Something is wrong with your user name or password")
+                      my_info(1,"Something is wrong with your user name or password")
                     elif err.errno == errorcode.ER_BAD_DB_ERROR:
-                      print("Database does not exist")
+                      my_info(1,"Database does not exist")
                     else:
-                      print(err)
-                    my_info(
-                        0, "Error encountered with database.")
+                      my_inf(1,err)
+                    my_info(1, "Error encountered with database.")
                 my_info(3,'Did the job...')
         previousWsReading = currentWsReading
 
@@ -182,7 +182,7 @@ def on_publish(mosq, obj, mid):
 
 
 def on_subscribe(mosq, obj, mid, granted_qos):
-    print("Subscribed: "+str(mid)+" "+str(granted_qos))
+    my_info(2,"Subscribed: "+str(mid)+" "+str(granted_qos))
 
 
 def on_log(mosq, obj, level, string):
@@ -191,12 +191,12 @@ def on_log(mosq, obj, level, string):
 
 def on_disconnect(client, userdata, rc):
     if rc != 0:
-        print("Unexpected disconnection rc="+str(rc))
+        my_info(1,"Unexpected disconnection rc="+str(rc))
 
 
 # --- MAIN -----------------------------------------------------
 
-my_info(0,'Starting script - v'+str(M_VERSION)+' - M level is: '+str(M_INFO))
+my_info(1,'Starting script - v'+str(M_VERSION)+' - M level is: '+str(M_INFO))
 
 mainloop = 1
 while mainloop == 1:
@@ -214,7 +214,7 @@ while mainloop == 1:
             mqttc.subscribe(MQTT_Topics)
             rc = 0
         except:
-            my_info(0, "Warning: No broker found. Retry in one minute.")
+            my_info(1, "Warning: No broker found. Retry in one minute.")
             time.sleep(60)
             pass
     
@@ -225,10 +225,10 @@ while mainloop == 1:
             rc = 1
             time.sleep(5)
 
-    print("Warning: Connection error - Restarting.")
+    my_info(1,"Warning: Connection error - Restarting.")
 
     if M_INFO > 2:
         mainloop = 0
 
 mqttc.disconnect()
-print ('Disconnected, done.')
+my_info(1, "Disconnected, done.")
