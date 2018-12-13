@@ -29,6 +29,10 @@ h2 {
     width: 40%;
     text-align: left;
 }
+tfoot#logHD {
+    border: 1px solid black;
+    padding: 8px;
+}
 .tab {
     overflow: hidden;
     border: 1px solid #ccc;
