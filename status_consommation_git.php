@@ -13,18 +13,13 @@ if ($conn->connect_error) {
 
 $carid=1;
 
-
 $sql = "select a.id as 'id', from_unixtime(a.tstamp) as 'DateHeure', a.value as 'EWs', round(a.value/3600,1) as 'EWh', round(a.value/3600/1000*b.value,3) as 'totdol', round(a.sdur/60,1) as 'sdurmn', a.carid as 'carid', a.status as 'status', b.value as 'tarif' from energySession a, tarif b where a.tarifid=b.id and a.carid=".$carid." order by a.tstamp desc limit 200";
 
+$sql_sommaire60j = "select year(from_unixtime(a.tstamp)) as 'yr',dayofyear(from_unixtime(a.tstamp)) as 'doy', date_format(from_unixtime(a.tstamp),'%M %e') as 'day', count(*) as 'nbs',round(sum(a.value)/3600/1000,2) as 'kwh', round(sum(a.value)/3600/1000*b.value,2) as 'cout', round(sum(a.sdur)/60,1) as 'sdur' from energySession a, tarif b where a.tarifid=b.id and a.carid=".$carid." and a.tstamp>=(unix_timestamp(now())-60*24*3600) group by yr,doy order by a.tstamp desc";
 
-$sql_sommaire60j = "select year(from_unixtime(a.tstamp)) as 'yr',dayofyear(from_unixtime(a.tstamp)) as 'doy', date_format(from_unixtime(a.tstamp),'%M %e') as 'day', count(*) as 'nbs',round(sum(a.value)/3600/1000,2) as 'kwh', round(sum(a.value)/3600/1000*b.value,2) as 'cout', round(sum(a.sdur)/60,1) as 'sdur' from energySession a, tarif b where a.tarifid=b.id and a.carid=".$carid." and a.tstamp>=(a.tstamp-60*24*3600) group by yr,doy order by a.tstamp desc";
-
-
-$sql_sommaire12m = "select year(from_unixtime(a.tstamp)) as 'yr',month(from_unixtime(a.tstamp)) as 'mois', date_format(from_unixtime(a.tstamp),'%M %e') as 'day', count(*) as 'nbs',round(sum(a.value)/3600/1000,2) as 'kwh', round(sum(a.value)/3600/1000*b.value,2) as 'cout', round(sum(a.sdur)/60,1) as 'sdur' from energySession a, tarif b where a.tarifid=b.id and a.carid=".$carid." and a.tstamp>=(a.tstamp-365*24*3600) group by yr,mois order by a.tstamp desc";
-
+$sql_sommaire12m = "select year(from_unixtime(a.tstamp)) as 'yr',month(from_unixtime(a.tstamp)) as 'mois', date_format(from_unixtime(a.tstamp),'%M %e') as 'day', count(*) as 'nbs',round(sum(a.value)/3600/1000,2) as 'kwh', round(sum(a.value)/3600/1000*b.value,2) as 'cout', round(sum(a.sdur)/60,1) as 'sdur' from energySession a, tarif b where a.tarifid=b.id and a.carid=".$carid." and a.tstamp>=(unix_timestamp(now())-365*24*3600) group by yr,mois order by a.tstamp desc";
 
 $sql_sombalance = "select sum(montantv) as 'sumV', sum(cost) as 'sumC', (sum(montantv)-sum(cost)) as 'bal' from ( (select 0 as 'montantv', round(sum(a.value)/3600/1000*b.value,2) as 'cost' from energySession a, tarif b where a.tarifid=b.id and a.carid=".$carid.") union all (select sum(value) as 'montantv', 0 as cost from versement where carid=".$carid.") )x";
-
 
 $sql_versements = "select id, date(from_unixtime(dateV)) as 'date', round(value,2) as 'valeur', status from versement where carid=".$carid." order by dateV desc limit 100";
 
@@ -55,7 +50,7 @@ echo <<<END
 <div id="Status" class="tabcontent">
 <h2>Status de la connectivité</h2>
 <table id="openevse">
-		<thead><tr><th>Msg#</th><th>Véhicule</th><th>Consommation</th><th>Temp module interne</th><th>Capacité fournie</th><th>Cumul session</th></tr></thead>
+		<thead><tr><th>Msg#</th><th>Véhicule</th><th>Consommation</th><th>Temp module interne</th><th>Capacité présentée</th><th>Cumul session</th></tr></thead>
 		<tbody><tr><td id="msgid"></td><td id="state"></td><td id="amp"></td><td id="temp1"></td><td id="pilot"></td><td id="ws"></td></tr></tbody>
 		<tfoot id="logHD"><tr><td colspan="6">MÀJ:<div id="dateheure"></div></td></tr>
 		<tr><td colspan="6">LOG:<div id="logger"></div></td></tr></tfoot>
@@ -112,7 +107,7 @@ echo "</table></div>";
 echo <<<END
 <div id="Graph1" class="tabcontent">
   <h2>Energie consommee (en WattHeure, Wh)</h2>
-  <iframe style="width:800px; height:600px;" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" name="graph1" src="http://192.168.122.203/emoncms/vis/multigraph?mid=4&embed=1&apikey=b85587d378ed6a5093190b73694d819c"></iframe>
+  <iframe style="width:800px; height:600px;" frameborder="1" scrolling="yes" marginheight="0" marginwidth="0" name="E-A-S" src="http://192.168.122.203/emoncms/vis/multigraph?mid=4&embed=1&apikey=b85587d378ed6a5093190b73694d819c"></iframe>
 </div>
 <div id="Graph2" class="tabcontent">
   <h2>Température Extérieure (Celcius)</h2>
