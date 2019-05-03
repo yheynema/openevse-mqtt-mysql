@@ -22,7 +22,7 @@ import paho.mqtt.client as mqtt
 import mysql.connector
 from mysql.connector import errorcode
 
-M_VERSION = "2.2.2"
+M_VERSION = "2.2.4"
 
 M_INFO = 2                 # Print messages: 0 - none, 1 - Startup, 2 - Serial, 3 - All
 
@@ -97,7 +97,7 @@ def on_message(mosq, obj, msg):
             my_info(2,'On '+time.ctime()+' - State changed: last='+str(lastState) +
                   " new="+str(currentState))
             # Dectecting state transition from 1 or 2, connected, a new session opens:
-            if lastState == 1 and currentState == 2:
+            if lastState <= 1 and currentState == 2:
                 # just connected
                 state2Timestamp = time.time()
             # Detecting state transition from 2 to 3, charging session
@@ -149,32 +149,37 @@ def on_message(mosq, obj, msg):
                 energySession = int(currentWsReading - initialWsReading)
                 my_info(2,'Session duration: '+str(sessionTime))
                 my_info(2,'Session Energy: '+str(currentWsReading))
-                try:
-                    my_info(3,'Logging data to MySQL')
-                    cnx = mysql.connector.connect(**sql_cfg)
-                    cursor = cnx.cursor()
-                    queryText = ("INSERT INTO energySession "
-                        "(tstamp,value,sdur,carid,status) "
-                        "VALUES (%s, %s, %s, %s, %s)")
+                if energySession > 0:
+                    try:
+                        my_info(3,'Logging data to MySQL')
+                        cnx = mysql.connector.connect(**sql_cfg)
+                        cursor = cnx.cursor()
+                        queryText = ("INSERT INTO energySession "
+                            "(tstamp,value,sdur,carid,status) "
+                            "VALUES (%s, %s, %s, %s, %s)")
 
-                    queryArgs = (time.time(), energySession,
-                        sessionTime, 1, 0)
-                    cursor.execute(queryText, queryArgs)
-                    my_info(2,'Successfully Added record to mysql')
-                    # Make sure data is committed to the database
-                    cnx.commit()
-                    cursor.close()
-                    cnx.close()
+                        queryArgs = (time.time(), energySession,
+                            sessionTime, 1, 0)
+                        cursor.execute(queryText, queryArgs)
+                        my_info(2,'Successfully Added record to mysql')
+                        # Make sure data is committed to the database
+                        cnx.commit()
+                        cursor.close()
+                        cnx.close()
+                        logEnergyState = 0
+                    except mysql.connector.Error as err:
+                        if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+                          my_info(1,"Something is wrong with your user name or password")
+                        elif err.errno == errorcode.ER_BAD_DB_ERROR:
+                          my_info(1,"Database does not exist")
+                        else:
+                          my_inf(1,err)
+                        my_info(1, "Error encountered with database.")
+                    my_info(3,'Did the job...')
+                else:
+                    #Un-usual case, log everything to level 1 and continue:
+                    my_info(1,'PROBLEM: negative energy value. initialWsReading='+str(initialWsReading) + '; previousWsReading=' + str(previousWsReading) + '; currentWsReading='+str(currentWsReading)+'; logEnergyState='+str(logEnergyState)+'; sessionEndedAt='+str(sessionEndedAt)+'; state2Timestamp='+str(state2Timestamp)+'; sessionStartAt='+str(sessionStartAt)+';')
                     logEnergyState = 0
-                except mysql.connector.Error as err:
-                    if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-                      my_info(1,"Something is wrong with your user name or password")
-                    elif err.errno == errorcode.ER_BAD_DB_ERROR:
-                      my_info(1,"Database does not exist")
-                    else:
-                      my_inf(1,err)
-                    my_info(1, "Error encountered with database.")
-                my_info(3,'Did the job...')
         previousWsReading = currentWsReading
 
 def on_publish(mosq, obj, mid):
