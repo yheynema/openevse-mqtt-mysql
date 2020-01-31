@@ -4,7 +4,8 @@ body {font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;}
     border-collapse: collapse;
     width: 80%;
 }
-#som12m, #som60j {
+#som12m, #som60j, #openevse {
+    border-collapse: collapse;
     width: 50%;
 }
 /*#details tbody td, #details thead th, #som12m tbody td, #som12m thead th,#som60j tbody td, #som60j thead th {*/
@@ -30,7 +31,7 @@ h2 {
     text-align: left;
 }
 tfoot#logHD {
-    border: 1px solid black;
+    border: 1px solid #ddd;
     padding: 8px;
 }
 .tab {
