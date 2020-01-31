@@ -96,7 +96,7 @@ def on_message(mosq, obj, msg):
         if currentState != lastState:
             my_info(2,'On '+time.ctime()+' - State changed: last='+str(lastState) +
                   " new="+str(currentState))
-            # Dectecting state transition from 1 or 2, connected, a new session opens:
+            # Dectecting state transition from (0,1) to 2, connected, a new session opens:
             if lastState <= 1 and currentState == 2:
                 # just connected
                 state2Timestamp = time.time()
@@ -148,7 +148,7 @@ def on_message(mosq, obj, msg):
                 sessionTime = int(sessionEndedAt - sessionStartAt)
                 energySession = int(currentWsReading - initialWsReading)
                 my_info(2,'Session duration: '+str(sessionTime))
-                my_info(2,'Session Energy: '+str(currentWsReading))
+                my_info(2,'Session Energy: '+str(energySession))
                 if energySession > 0:
                     try:
                         my_info(3,'Logging data to MySQL')
