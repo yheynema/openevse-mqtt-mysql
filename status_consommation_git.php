@@ -12,12 +12,15 @@ if ($conn->connect_error) {
 } 
 
 $carid=1;
+$details_limit=50;
+$somm12m_limit=365;
+$somm60j_limit=60;
 
-$sql = "select a.id as 'id', from_unixtime(a.tstamp) as 'DateHeure', a.value as 'EWs', round(a.value/3600,1) as 'EWh', round(a.value/3600/1000*b.value,3) as 'totdol', round(a.sdur/60,1) as 'sdurmn', a.carid as 'carid', a.status as 'status', b.value as 'tarif' from energySession a, tarif b where a.tarifid=b.id and a.carid=".$carid." order by a.tstamp desc limit 200";
+$sql = "select a.id as 'id', from_unixtime(a.tstamp) as 'DateHeure', a.value as 'EWs', round(a.value/3600,1) as 'EWh', round(a.value/3600/1000*b.value,3) as 'totdol', round(a.sdur/60,1) as 'sdurmn', a.carid as 'carid', a.status as 'status', b.value as 'tarif' from energySession a, tarif b where a.tarifid=b.id and a.carid=".$carid." order by a.tstamp desc limit ".$details_limit;
 
-$sql_sommaire60j = "select year(from_unixtime(a.tstamp)) as 'yr',dayofyear(from_unixtime(a.tstamp)) as 'doy', date_format(from_unixtime(a.tstamp),'%M %e') as 'day', count(*) as 'nbs',round(sum(a.value)/3600/1000,2) as 'kwh', round(sum(a.value)/3600/1000*b.value,2) as 'cout', round(sum(a.sdur)/60,1) as 'sdur' from energySession a, tarif b where a.tarifid=b.id and a.carid=".$carid." and a.tstamp>=(unix_timestamp(now())-60*24*3600) group by yr,doy order by a.tstamp desc";
+$sql_sommaire60j = "select year(from_unixtime(a.tstamp)) as 'yr',dayofyear(from_unixtime(a.tstamp)) as 'doy', date_format(from_unixtime(a.tstamp),'%M %e') as 'day', count(*) as 'nbs',round(sum(a.value)/3600/1000,2) as 'kwh', round(sum(a.value)/3600/1000*b.value,2) as 'cout', round(sum(a.sdur)/60,1) as 'sdur' from energySession a, tarif b where a.tarifid=b.id and a.carid=".$carid." and a.tstamp>=(unix_timestamp(now())-24*".$somm60j_limit."*3600) group by yr,doy order by a.tstamp desc";
 
-$sql_sommaire12m = "select year(from_unixtime(a.tstamp)) as 'yr',month(from_unixtime(a.tstamp)) as 'mois', date_format(from_unixtime(a.tstamp),'%M %e') as 'day', count(*) as 'nbs',round(sum(a.value)/3600/1000,2) as 'kwh', round(sum(a.value)/3600/1000*b.value,2) as 'cout', round(sum(a.sdur)/60,1) as 'sdur' from energySession a, tarif b where a.tarifid=b.id and a.carid=".$carid." and a.tstamp>=(unix_timestamp(now())-365*24*3600) group by yr,mois order by a.tstamp desc";
+$sql_sommaire12m = "select year(from_unixtime(a.tstamp)) as 'yr',month(from_unixtime(a.tstamp)) as 'mois', date_format(from_unixtime(a.tstamp),'%M %e') as 'day', count(*) as 'nbs',round(sum(a.value)/3600/1000,2) as 'kwh', round(sum(a.value)/3600/1000*b.value,2) as 'cout', round(sum(a.sdur)/60,1) as 'sdur' from energySession a, tarif b where a.tarifid=b.id and a.carid=".$carid." and a.tstamp>=(unix_timestamp(now())-24*".$somm12m_limit."*3600) group by yr,mois order by a.tstamp desc";
 
 $sql_sombalance = "select sum(montantv) as 'sumV', sum(cost) as 'sumC', (sum(montantv)-sum(cost)) as 'bal' from ( (select 0 as 'montantv', round(sum(a.value)/3600/1000*b.value,2) as 'cost' from energySession a, tarif b where a.tarifid=b.id and a.carid=".$carid.") union all (select sum(value) as 'montantv', 0 as cost from versement where carid=".$carid.") )x";
 
@@ -27,7 +30,7 @@ echo <<<END
 <!DOCTYPE html>
 <html>
 <head>
-	<title>Liste des recharges de la Chevrolet Spark</title>
+	<title>Liste des recharges à la borne EVSE</title>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" type="text/css" href="style2.css">
@@ -35,13 +38,13 @@ echo <<<END
 	<script src="tabScript.js"></script>
 </head>
 <body>
-<h1>Recharges de la Chevrolet Spark</h1>
+<h1>Recharges à la borne EVSE</h1>
 <hr/>
 
 <div class="tab">
-  <button class="tablinks" onclick="openPage(event, 'Status')">Status</button>
+  <button class="tablinks" onclick="openPage(event, 'Status')" id="defaultOpen">Status</button>
   <button class="tablinks" onclick="openPage(event, 'Sommaire12m')">Sommaire 12m</button>
-  <button class="tablinks" onclick="openPage(event, 'Sommaire60j')" id="defaultOpen">Sommaire 60j</button>
+  <button class="tablinks" onclick="openPage(event, 'Sommaire60j')">Sommaire 60j</button>
   <button class="tablinks" onclick="openPage(event, 'Details')">Détails</button>
   <button class="tablinks" onclick="openPage(event, 'Graph1')">Graph Energie</button>
   <button class="tablinks" onclick="openPage(event, 'Graph2')">Graph Temperature</button>
@@ -50,8 +53,8 @@ echo <<<END
 <div id="Status" class="tabcontent">
 <h2>Status de la connectivité</h2>
 <table id="openevse">
-		<thead><tr><th>Msg#</th><th>Véhicule</th><th>Consommation</th><th>Temp module interne</th><th>Capacité présentée</th><th>Cumul session</th></tr></thead>
-		<tbody><tr><td id="msgid"></td><td id="state"></td><td id="amp"></td><td id="temp1"></td><td id="pilot"></td><td id="ws"></td></tr></tbody>
+		<thead><tr><th>Msg#</th><th>Véhicule</th><th>Consommation</th><th>Temp module interne</th><th>Capacité présentée</th><th>Cumul session</th><th>UsagerID</th></tr></thead>
+			<tbody><tr><td id="msgid"></td><td id="state"></td><td id="amp"></td><td id="temp1"></td><td id="pilot"></td><td id="ws"></td><td id="userid">0</td></tr></tbody>
 		<tfoot id="logHD"><tr><td colspan="6">MÀJ:<div id="dateheure"></div></td></tr>
 		<tr><td colspan="6">LOG:<div id="logger"></div></td></tr></tfoot>
 	</table>
@@ -91,7 +94,7 @@ $result = $conn->query($sql);
 
 echo "<div id=\"Details\" class=\"tabcontent\">";
 echo "<h2>Liste des récentes recharges</h2>";
-echo "<p>Note: cette liste est limitée aux 150 dernières recharges seulement.</p>";
+echo "<p>Note: cette page liste les 50 dernières recharges seulement.</p>";
 echo "<table id=\"details\" class=\"tbl3\"><thead><tr><th>ID</th><th>Date Heure (fin)</th><th>Energie (Ws)</th><th>Energie (Wh)</th><th>Cout ($)</th><th>Tarif</th><th>Durée (mn)</th><th>Vehicule ID</th><th>Status</th></tr></thead><tbody>";
 
 if ($result->num_rows > 0) {
