@@ -1,4 +1,3 @@
-
 /* Ref tbl is structured as:
      level 0 index=table number (ie:tblX);
      1st element: number of columns in the table
@@ -12,6 +11,7 @@ var amp=0;
 var temp1=0;
 var pilot=0;
 var wh=0;
+var userid=0;
 var mqttConnectStatus=0;
 var nbmsg=0;
 var etats=["Inconnu","Déconnecté","Connecté","Charge en cours","Erreur","Erreur"];
@@ -96,6 +96,11 @@ function onMessageArrived(message) {
         //console.log("wh msg: "+wh);
         document.getElementById("ws").innerHTML = wh.toFixed(1)+" Wh";
     }
+    if (message.destinationName == "openevse/userid") {
+        var msgdata=message.payloadString.split(',');
+        //console.log("userid msg: at "+ msgdata[0]+" user="+msgdata[1]);
+        document.getElementById("userid").innerHTML = "tag" + msgdata[1]+"@"+msgdata[0];
+    }
     
 }
 
@@ -108,6 +113,7 @@ function onConnect() {
     client.subscribe("openevse/state",subscribeOptions);
     client.subscribe("openevse/temp1",subscribeOptions);
     client.subscribe("openevse/wh",subscribeOptions);
+    client.subscribe("openevse/userid",subscribeOptions);
 }
 
 function log(message) {
